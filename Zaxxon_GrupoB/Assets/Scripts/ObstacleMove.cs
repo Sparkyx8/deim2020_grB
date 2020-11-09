@@ -4,36 +4,35 @@ using UnityEngine;
 
 public class ObstacleMove : MonoBehaviour
 {
-
-    //Creamos la variable a la que se moverá el obtáculo
-    //Este valor deberá depender de la velocidad de la nave
-    private float obstacleSpeed;
-
-    public GameObject SpaceShip;
-    SpaceshipMove spaceshipMove;
-
+    [SerializeField] GameObject Columna;
+    public static float spaceSpeed = 10f;
     // Start is called before the first frame update
     void Start()
     {
-        SpaceShip = GameObject.Find("Spaceship");
-        spaceshipMove = SpaceShip.GetComponent<SpaceshipMove>();
+        transform.Rotate(0, 180, 0);
+        StartCoroutine("Limite");
     }
 
     // Update is called once per frame
     void Update()
     {
-        
-        //Comprobamos si la instancia ha rebasado a la nave y la destruimos
-        //NOTA: habría que pasar esto a una CORRUTINA para consumir menos recursos
-        float PosZ = transform.position.z;
-        if(PosZ < -12)
+        transform.Translate(Vector3.forward * Time.deltaTime * spaceSpeed);
+        print(spaceSpeed);
+        if (spaceSpeed >= 50)
         {
-            Destroy(gameObject);
+            spaceSpeed = 50;
+        }
+    }
+    IEnumerator Limite()
+    {
+        for (int n = 0; ; n++)
+        {
+            if(transform.position.z <= -8)
+            {
+                Destroy(Columna);
+            }
+            yield return new WaitForSeconds(2f);
         }
 
-        //Asignamos una velocidad fija (de momento)
-        obstacleSpeed = 2.5f;
-        transform.Translate(Vector3.back * Time.deltaTime * obstacleSpeed);
- 
     }
 }
