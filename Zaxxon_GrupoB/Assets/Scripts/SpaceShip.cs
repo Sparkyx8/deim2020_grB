@@ -41,8 +41,8 @@ public class SpaceShip : MonoBehaviour
         moveSpaceship();
         //Distancia y velocidad.
         //Pendiente de cambiar para que los obstáculos cojan la variable de la nada y no al revés.
-        distance = distance + 1 * Time.deltaTime * ObstacleMove.spaceSpeed;
-        ObstacleMove.spaceSpeed = ObstacleMove.isAlive * 10f + 1 * distance / 50;
+        distance += 1 * Time.deltaTime * ObstacleMove.spaceSpeed;
+        ObstacleMove.spaceSpeed = ObstacleMove.isAlive * 10f + 1 * distance / 50 * ObstacleMove.isAlive;
         if (ObstacleMove.spaceSpeed >= 50)
         {
             ObstacleMove.spaceSpeed = 50;
@@ -58,7 +58,7 @@ public class SpaceShip : MonoBehaviour
         }
         int myDistance = (int)distance;
         distanceText.text = "Distance: " + myDistance;
-        float spaceShipSpeed = ObstacleMove.spaceSpeed * 4;
+        float spaceShipSpeed = ObstacleMove.spaceSpeed * 10;
         speedText.text = "Speed: " + spaceShipSpeed.ToString("F2");
         //print(ObstacleMove.spaceSpeed);
     }
@@ -71,6 +71,8 @@ public class SpaceShip : MonoBehaviour
             print("GAME OVER");
             myMeshRender.enabled = false;
             ObstacleMove.isAlive = 0;
+            inMarginMoveX = false;
+            inMarginMoveY = false;
         }
     }
     /*IEnumerator Distancia()

@@ -104,7 +104,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 100000}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1765ac024ed5a474db5f03309777eeca, type: 3}
+  m_Script: {fileID: 11500000, guid: c78019563eed7c14ba9acd3e1cdb72ce, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   distanceText: {fileID: 0}
+  speedText: {fileID: 0}
+  inMarginMoveX: 1
+  inMarginMoveY: 1
+  myMeshRender: {fileID: 0}
