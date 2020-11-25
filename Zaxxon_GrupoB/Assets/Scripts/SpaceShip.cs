@@ -22,6 +22,10 @@ public class SpaceShip : MonoBehaviour
     private ObstacleMove obstacleMove;
     //Variable para hacer desaparecer la nave cuando choca.
     [SerializeField] MeshRenderer myMeshRender;
+    //Variables para instanciar la explosión.
+    [SerializeField] GameObject explosion;
+    [SerializeField] Transform explPos;
+    private AudioSource explSound;
     // Start is called before the first frame update
     void Start()
     {
@@ -32,6 +36,7 @@ public class SpaceShip : MonoBehaviour
         Text distanceText = GetComponent<Text>();
         Text speedText = GetComponent<Text>();
         //StartCoroutine("Distancia");
+        explSound = GetComponent<AudioSource>();
     }
 
     // Update is called once per frame
@@ -70,6 +75,8 @@ public class SpaceShip : MonoBehaviour
         {
             print("GAME OVER");
             myMeshRender.enabled = false;
+            Instantiate(explosion, explPos);
+            explSound.Play(0);
             ObstacleMove.isAlive = 0;
             inMarginMoveX = false;
             inMarginMoveY = false;
