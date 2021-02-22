@@ -4,151 +4,290 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEditor;
 
 public class SpaceShip : MonoBehaviour
 {
-    //Variables para incluir el texto en el UI.
-    [SerializeField] Text distanceText;
-    [SerializeField] Text speedText;
     //Variable para la velocidad horizontal de la nave.
-    float speed = 10f;
-    //Variable para la distancia.
-    public static float distance;
+    private float speed = 10f;
     //Variables booleanas para el movimiento de la nave.
-    public bool inMarginMoveX = true;
-    public bool inMarginMoveY = true;
-    //Variables para acceder a otros componentes de los obstáculos.
-    public GameObject movimientoObstaculo;
-    private ObstacleMove obstacleMove;
+    private bool inMarginMoveX = true;
+    private bool inMarginMoveY = true;
+    //Variable para acceder al código general
+    private GeneralCode generalCode;
     //Variable para hacer desaparecer la nave cuando choca.
-    [SerializeField] MeshRenderer myMeshRender;
+    private MeshRenderer meshRender;
     //Variables para instanciar la explosión.
     [SerializeField] GameObject explosion;
     [SerializeField] Transform explPos;
-    private AudioSource explSound;
-    // Start is called before the first frame update
+    [SerializeField] AudioClip explSound;
+    //Variables para el misil
+    [SerializeField] GameObject missile;
+    [SerializeField] AudioClip missileSound;
+    private Vector3 missilePos;
+    private float pos;
+    //Variable para el Audio Source
+    private AudioSource audioSource;
+    //Variable para cambiar la skin de la nave
+    private MeshFilter meshFilter;
+    //Variable para saber si se mueve la nave
+    private bool isMovingRight = false;
+    private bool isMovingLeft = false;
+    private bool isMovingUp = false;
+    private bool isMovingDown = false;
+    //Variable para el Animator
+    private Animator animator;
+    private BoxCollider boxCollider;
+    //Variable para saber si ha disparado ya
+    private bool firstShot = false;
+    //variable para asignar el lado desde el que dispara
+    private float shootSide;
+    //Variable para saber si está disparando
+    private bool isShooting = false;
+    //Variables para la explosión de la mina
+    [SerializeField] GameObject explMina;
+    [SerializeField] AudioClip minaSound;
+    private Vector3 minaPos;
     void Start()
     {
-        //Accedemos a los componentes, variables, métodos, etc de los obstáculos.
-        movimientoObstaculo = GameObject.Find("Obstacle");
-        //obstacleMove = movimientoObstaculo.GetComponent<ObstacleMove>();
-        //Accedemos a los textos.
-        Text distanceText = GetComponent<Text>();
-        Text speedText = GetComponent<Text>();
-        //StartCoroutine("Distancia");
-        explSound = GetComponent<AudioSource>();
+        //Accedemos al Game Object general.
+        generalCode = GameObject.Find("VarObject").GetComponent<GeneralCode>();
+        //Accedemos al audio source
+        audioSource = GetComponent<AudioSource>();
+        //Accedemos al mesh render
+        meshRender = GetComponent<MeshRenderer>();
+        //Accedemos al mesh filter
+        meshFilter = GetComponent<MeshFilter>();
+        //Accedemos al animator
+        animator = GetComponent<Animator>();
     }
-
-    // Update is called once per frame
     void Update()
     {
         //Método para el movimiento de la nave.
+        if (generalCode.isAlive == true)
+        { 
         moveSpaceship();
-        //Distancia y velocidad.
-        //Pendiente de cambiar para que los obstáculos cojan la variable de la nada y no al revés.
-        distance += 1 * Time.deltaTime * ObstacleMove.spaceSpeed;
-        ObstacleMove.spaceSpeed = ObstacleMove.isAlive * 10f + 1 * distance / 50 * ObstacleMove.isAlive;
-        if (ObstacleMove.spaceSpeed >= 50)
-        {
-            ObstacleMove.spaceSpeed = 50;
         }
-        speed = 10 * distance / 1000;
-        if (speed < 10)
+        //Distancia y velocidad.
+        Distancia();
+        //Comprobamos si ha pulsado, si tiene munición y si está vivo
+        if (Input.GetButtonDown("Fire1") && generalCode.ammunition > 0 && generalCode.isAlive == true && !isShooting)
         {
-            speed = 10;
+            //Disparar
+            Dispara();
+        }
+    }
+
+    //Colisiones
+    private void OnTriggerEnter(Collider other)
+    {
+        //Detectamos si ha colisionado con un obstáculo
+        if (other.gameObject.tag == "Obstacle")
+        {
+            //Desactivamos el render para que la nave desaparezca
+            meshRender.enabled = false;
+            //Creamos la explosión con su sonido
+            Instantiate(explosion, explPos);
+            audioSource.PlayOneShot(explSound);
+            //Cambiamos la variable de vivo a falso
+            generalCode.isAlive = false;
+            //Le impedimos moverse
+            inMarginMoveX = false;
+            inMarginMoveY = false;
+            //Detectamos si el obstáculo contra el que ha chocado es una mina
+            if (other.gameObject.GetComponent<MineMove>() != null)
+            {
+                //Creamos la posición de la mina e instanciamos la explosión y activamos el sonido
+                minaPos = new Vector3(other.gameObject.transform.position.x, other.gameObject.transform.position.y, other.gameObject.transform.position.z);
+                Instantiate(explMina, minaPos, Quaternion.identity);
+                audioSource.PlayOneShot(minaSound);
+                //Destruimos la mina
+                Destroy(other.gameObject);
+            }
+        }
+        //Detectamos si ha chocado con una caja de munición
+        if (other.gameObject.GetComponent<AmmoBox>() != null)
+        {
+            //Destruimos la caja de munición
+            Destroy(other.gameObject);
+            //Aumentamos la munición disponible
+            generalCode.gotAmmo = true;
+        }
+    }
+    //Método para mover la nave.
+    private void moveSpaceship()
+    {
+        //Variables para la posición de la nave
+        float myPosX = transform.position.x;
+        float myPosY = transform.position.y;
+        //Variables para los input del jugador
+        float desplX = Input.GetAxis("Horizontal");
+        float desplY = Input.GetAxis("Vertical");
+        //Le dejamos moverse si está en los márgenes
+        if (inMarginMoveX == true)
+        {
+            //Hacemos que se mueva
+            transform.Translate(Vector3.right * Time.deltaTime * speed * desplX, Space.World);
+            //Detectamos la dirección
+            if(desplX > 0)
+            {
+                //Cambiamos las booleanas de la dirección
+                isMovingRight = true;
+                isMovingLeft = false;
+            }
+            //Detectamos la dirección
+            else if (desplX < 0)
+            {
+                //Cambiamos las booleanas de la dirección
+                isMovingLeft = true;
+                isMovingRight = false;
+            }
+        }
+        //Creamos los márgenes y activamos o desactivamos la booleana en consecuencia
+        if (myPosX < -9 && desplX < 0)
+        {
+            inMarginMoveX = false;
+        }
+        else if (myPosX > 9 && desplX > 0)
+        {
+            inMarginMoveX = false;
+        }
+        else if (myPosX < -9 && desplX > 0)
+        {
+            inMarginMoveX = true;
+        } 
+        else if (myPosX > 9 && desplX < 0)
+        {
+            inMarginMoveX = true;
+        }
+        if (inMarginMoveY == true)
+        {
+            transform.Translate(Vector3.up * Time.deltaTime * speed * desplY, Space.World);
+            //Detectamos la dirección
+            if (desplY > 0)
+            {
+                //Cambiamos las booleanas de la dirección
+                isMovingUp = true;
+                isMovingDown = false;
+            }
+            //Detectamos la dirección
+            else if (desplY < 0)
+            {
+                //Cambiamos las booleanas de la dirección
+                isMovingDown = true;
+                isMovingUp = false;
+            }
+        }
+        //Creamos los márgenes y activamos o desactivamos la booleana en consecuencia
+        if (myPosY < 1 && desplY < 0)
+        {
+            inMarginMoveY = false;
+        }
+        else if (myPosY > 20 && desplY > 0)
+        {
+            inMarginMoveY = false;
+        }
+        else if (myPosY < 1 && desplY > 0)
+        {
+            inMarginMoveY = true;
+        }
+        else if (myPosY > 20 && desplY < 0)
+        {
+            inMarginMoveY = true;
+        }
+        if (desplX == 0)
+        {
+            isMovingRight = false;
+            isMovingLeft = false;
+        }
+        if (desplY == 0)
+        {
+            isMovingUp = false;
+            isMovingDown = false;
+        }
+        //Cambiamos las animaciones según las booleanas
+        animator.SetBool("MoveUp", isMovingUp);
+        animator.SetBool("MoveDown", isMovingDown);
+        animator.SetBool("MoveRight", isMovingRight);
+        animator.SetBool("MoveLeft", isMovingLeft);
+    }
+    //Método para la distancia y la velocidad de la nave
+    private void Distancia()
+    {
+        //Asignamos una fórmula para la distancia
+        generalCode.distance += 1 * Time.deltaTime * generalCode.spaceSpeed;
+        //Comprobamos si está vivo
+        if (generalCode.isAlive == true)
+        {
+            //Asignamos una fórmula para la velocidad del mundo
+            generalCode.spaceSpeed = 10f + 1 * generalCode.distance / 50;
+        }
+        else if (generalCode.isAlive == false)
+        {
+            //Cambiamos la velocidad a 0
+            generalCode.spaceSpeed = 0f;
+        }
+        //Comprobamos si la velocidad está muy alta
+        if (generalCode.spaceSpeed >= 50)
+        {
+            //Limitamos la velocidad a 50
+            generalCode.spaceSpeed = 50;
+        }
+        //Asignamos una fórmula para la velocidad horizontal y vertical de la nave
+        speed = 10 * generalCode.distance / 1000;
+        //Le asignamos unos límites a la velocidad
+        if (speed < 15)
+        {
+            speed = 15;
         }
         else if (speed > 30)
         {
             speed = 30;
         }
-        int myDistance = (int)distance;
-        distanceText.text = "Distance: " + myDistance;
-        float spaceShipSpeed = ObstacleMove.spaceSpeed * 10;
-        speedText.text = "Speed: " + spaceShipSpeed.ToString("F2");
-        //print(ObstacleMove.spaceSpeed);
     }
-
-    //Colisiones con los obstáculos.
-    private void OnTriggerEnter(Collider other)
+    //Método para disparar el misil
+    private void Dispara()
     {
-        if (other.gameObject.tag == "Obstacle")
+        //Comprobamos si ha disparado alguna vez
+        if (firstShot == false)
         {
-            print("GAME OVER");
-            myMeshRender.enabled = false;
-            Instantiate(explosion, explPos);
-            explSound.Play(0);
-            ObstacleMove.isAlive = 0;
-            inMarginMoveX = false;
-            inMarginMoveY = false;
+            //Cambiamos la booleana
+            firstShot = true;
+            //Asignamos el lado del disparo
+            shootSide = 1;
+            pos = transform.position.x + shootSide;
+            //Cambiamos el lado del disparo
+            shootSide = -1;
+            //Disparamos
+            StartCoroutine(Missile());
+        }
+        else if (firstShot == true)
+        {
+            //Asignamos el lado del disparo
+            pos = transform.position.x + shootSide;
+            //Invertimos la variable para cambiar el lado del disparo
+            shootSide = shootSide * -1;
+            //Disparamos
+            StartCoroutine(Missile());
         }
     }
-    /*IEnumerator Distancia()
+    //Corrutina para el disparo
+    IEnumerator Missile()
     {
-        for (int n = 0; ; n++)
-        {
-            distanceText.text = "Distancia: " + n;
-            yield return new WaitForSeconds(1f / ObstacleMove.spaceSpeed);
-        }
-
-    }*/
-    //Método para mover la nave.
-    public void moveSpaceship()
-    {
-        float myPosX = transform.position.x;
-        float desplX = Input.GetAxis("Horizontal");
-        //Makes the spaceship move vertically.
-        /*transform.Translate(Vector3.forward * Time.deltaTime * speed * Input.GetAxis("Vertical"));
-        if (transform.position.y >= 10)
-        {
-            transform.position = new Vector3(transform.position.x, 10, transform.position.z);
-        }
-        else if (transform.position.y <= 0)
-        {
-            transform.position = new Vector3(transform.position.x, 0, transform.position.z);
-        }*/
-
-        //Makes the spaceship move horizontally.
-        /*transform.Translate(Vector3.right * Time.deltaTime * speed * desplX);
-        if (myPosX >= 10)
-        {
-            transform.position = new Vector3(10, transform.position.y, transform.position.z);
-        }
-        else if (myPosX <= -10)
-        {
-            transform.position = new Vector3(-10, transform.position.y, transform.position.z);
-        }*/
-
-        //Makes the spaceship rotate.
-        /*float rotation = 30f * Time.deltaTime * speed * desplX);
-        transform.Rotate(0f, 0f, rotation);
-        print(rotation);
-        if (transform.rotation.z >= 30)
-        {
-            transform.rotation = new Quaternion(transform.rotation.x, transform.rotation.y, 30f, transform.rotation.w);
-        }
-        else if (transform.rotation.z <= -30)
-        {
-            transform.rotation = new Quaternion(transform.rotation.x, transform.rotation.y, -30f, transform.rotation.w);
-        }*/
-        if (inMarginMoveX == true)
-        {
-            transform.Translate(Vector3.right * Time.deltaTime * speed * desplX);
-        }
-        if (myPosX < -10 && desplX < 0)
-        {
-            inMarginMoveX = false;
-        }
-        else if (myPosX > 10 && desplX > 0)
-        {
-            inMarginMoveX = false;
-        }
-        else if (myPosX < -10 && desplX > 0)
-        {
-            inMarginMoveX = true;
-        } 
-        else if (myPosX > 10 && desplX < 0)
-        {
-            inMarginMoveX = true;
-        }
+        //Decimos que está disparando
+        isShooting = true;
+        //Asignamos la posición del misil
+        missilePos = new Vector3(pos, transform.position.y, transform.position.z);
+        //Creamos el misil con el audio
+        Instantiate(missile, missilePos, Quaternion.identity);
+        audioSource.PlayOneShot(missileSound);
+        //Reducimos la munición disponible
+        generalCode.ammunition -= 1;
+        //Esperamos para que no pueda usar varios misiles de golpe
+        yield return new WaitForSeconds(1f);
+        //Decimos que no está disparando
+        isShooting = false;
+        //Paramos la corrutina para que no se repita 
+        StopCoroutine(Missile());
     }
 }
